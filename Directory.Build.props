@@ -1,0 +1,33 @@
+<Project>
+
+  <PropertyGroup>
+    <Product>WeaverBot</Product>
+    <Version>0.0.1</Version>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AnalysisLevel>latest</AnalysisLevel>
+
+    <RootDir>$(MSBuildThisFileDirectory)</RootDir>
+    <ArtifactsDir>$(RootDir)artifacts\</ArtifactsDir>
+    <OutputPath>$(ArtifactsDir)bin\$(MSBuildProjectName)</OutputPath>
+    <BaseIntermediateOutputPath>$(ArtifactsDir)obj\$(MSBuildProjectName)</BaseIntermediateOutputPath>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="$(Configuration.Contains('Debug'))">
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <RhinoVersion>8</RhinoVersion>
+    <PackageDir>$(AppData)\McNeel\Rhinoceros\packages\$(RhinoVersion).0\$(Product)</PackageDir>
+    <OutputPath>$(PackageDir)\$(Version)</OutputPath>
+  </PropertyGroup>
+
+  <Target Name="Manifest" BeforeTargets="Build" Condition="$(Configuration.Contains('Debug'))">
+    <WriteLinesToFile File="$(PackageDir)\manifest.txt" Overwrite="true" Lines="$(Version)" />
+  </Target>
+
+</Project>

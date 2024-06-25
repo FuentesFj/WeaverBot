@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetExt>.rhp</TargetExt>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\WeaverBot.Core\WeaverBot.Core.csproj" />
+
+    <EmbeddedResource Include="$(RootDir)media\icon.ico" Visible="false" />
+  </ItemGroup>
+
+</Project>

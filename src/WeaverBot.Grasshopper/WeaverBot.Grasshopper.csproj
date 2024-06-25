@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetExt>.gha</TargetExt>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Grasshopper" Version="8.7.24138.15431" ExcludeAssets="runtime" />
+    <ProjectReference Include="..\WeaverBot.Core\WeaverBot.Core.csproj" />
+
+    <EmbeddedResource Include="$(RootDir)media\icon.png" Visible="false" />
+  </ItemGroup>
+
+</Project>
