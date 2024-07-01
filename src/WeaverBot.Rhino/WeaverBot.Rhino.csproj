@@ -6,8 +6,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\WeaverBot.Core\WeaverBot.Core.csproj" />
-
     <EmbeddedResource Include="$(RootDir)media\icon.ico" Visible="false" />
+    <EmbeddedResource Include="$(RootDir)media\DDF_Logo.png" Visible="false" />
+    <EmbeddedResource Include="$(RootDir)media\KIT_Logo.png" Visible="false" />
+    <EmbeddedResource Include="$(RootDir)media\Github_Logo.png" Visible="false" />
+    <EmbeddedResource Include="$(RootDir)media\Insta_Logo.png" Visible="false" />
   </ItemGroup>
 
 </Project>

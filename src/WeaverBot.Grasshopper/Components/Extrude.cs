@@ -11,7 +11,7 @@ public class ExtrudeCurve : GH_Component
     public ExtrudeCurve() : base("Extrude Curve", "ExtrudeCurve", "Extrudes curves.", Util.PluginName, "Components") { }
     public override GH_Exposure Exposure => GH_Exposure.primary;
     public override Guid ComponentGuid => new("8D0F7963-ABE3-41F9-9F52-C4E1470C77A9");
-    protected override Bitmap Icon => WeaverBotInfo.GetIcon();
+    protected override Bitmap Icon => Util.GetBitmapIcon("icon.png","WeaverBot.Grasshopper",typeof(WeaverBotInfo));
 
     protected override void RegisterInputParams(GH_InputParamManager pManager)
     {

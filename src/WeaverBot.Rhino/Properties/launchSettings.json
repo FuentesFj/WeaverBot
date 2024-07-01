@@ -3,7 +3,7 @@
     "Rhino 8": {
       "commandName": "Executable",
       "executablePath": "C:\\Program Files\\Rhino 8\\System\\Rhino.exe",
-      "commandLineArgs": "/nosplash /netfx",
+      "commandLineArgs": "/nosplash /netfx \"C:\\Users\\fuent\\Documents\\Javi\\PROYECTOS\\008_PHD\\2.PhD\\1_Execution\\1_Rhino\\DevelopmentFile.3dm\"",
       "nativeDebugging": false
     }
   }

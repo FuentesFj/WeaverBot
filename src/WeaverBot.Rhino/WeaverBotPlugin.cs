@@ -23,15 +23,8 @@ public class WeaverBotPlugin : PlugIn
 
     protected override LoadReturnCode OnLoad(ref string errorMessage)
     {
-        Panels.RegisterPanel(this, typeof(WeaverBotPanel), Util.PluginName, GetIcon("icon.ico"), PanelType.PerDoc);
+        Panels.RegisterPanel(this, typeof(WeaverBotPanel), Util.PluginName, Util.GetIcon("icon.ico","WeaverBot.Rhino",typeof(WeaverBotPlugin)), PanelType.PerDoc);
         //Panels.OpenPanel(typeof(WeaverBotPanel));
         return LoadReturnCode.Success;
-    }
-
-    static Icon GetIcon(string iconName)
-    {
-        var assembly = typeof(WeaverBotPlugin).Assembly;
-        using var stream = assembly.GetManifestResourceStream($"WeaverBot.Rhino.{iconName}");
-        return new(stream);
     }
 }
