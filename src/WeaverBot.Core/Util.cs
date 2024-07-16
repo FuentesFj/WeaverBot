@@ -12,9 +12,6 @@ namespace WeaverBot.Core
     {
         public static readonly string PluginName = "WeaverBot";
         public static readonly string PluginVersion = "0.01";
-
-
-
         public static System.Drawing.Bitmap GetBitmapIcon(string imageIconName, string nameOfCSharpProject, Type AssemblyClass)
         {
             var assembly = AssemblyClass.Assembly;
@@ -36,7 +33,6 @@ namespace WeaverBot.Core
             }
             return new Icon(stream);
         }
-
         public static Eto.Drawing.Bitmap GetEtoBitmapIcon(string imageIconName, string nameOfCSharpProject, Type AssemblyClass)
         {
             var assembly = AssemblyClass.Assembly;
