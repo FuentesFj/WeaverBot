@@ -56,33 +56,49 @@ public class WeaverBot_Horizontal : Command
     protected override Result RunCommand(RhinoDoc doc, RunMode mode)
     {
         Result r1 = InformationInput(out var contourInterval);
+        if (r1 != Result.Success)
+        {
+            WeaverBotPanel.rhinoWeavingObjects = new List<RhinoObject>();
+            return r1;
+        }
+
         Result r2 = GenerateAxisForStructure(out var axis);
 
-        if(r1 != Result.Success & r2 !=Result.Success)
+        if (r2 != Result.Success)
         {
-            return r1;
+            WeaverBotPanel.rhinoWeavingObjects = new List<RhinoObject>();
+            return r2;
         }
 
         //Generate an oriented Brep as a BoundingBox
         var orientedBrep = WeaverBot.Core.Util.GenerateOrientedBrep(WeaverBotPanel.rhinoWeavingObjects, axis);
         //Generate the Contours of the geometry and extract the biggest one.
-        var r3 = GenerateContours(orientedBrep,axis,contourInterval,out Surface mainSectionSurface);
+        var r3 = GenerateContours(orientedBrep, axis, contourInterval, out Brep mainSectionBrep, out Guid mainSectionBrepGuid);
         if (r3 != Result.Success)
         {
+            WeaverBotPanel.rhinoWeavingObjects = new List<RhinoObject>();
             return r3;
         }
         //Create the view
+        var r4 = GenerateViews(mainSectionBrep,mainSectionBrepGuid);
+        if (r4 != Result.Success)
+        {
+            WeaverBotPanel.rhinoWeavingObjects = new List<RhinoObject>();
+            return r4;
+        }
+
+
+        WeaverBotPanel.rhinoWeavingObjects = new List<RhinoObject>();
         return Result.Success;
     }
     private Result InformationInput(out double contourInterval)
     {
         //Selection of Objects***********************************************************
-        contourInterval = 20;
+        contourInterval = 60;
         var selectionResult = RhinoGet.GetMultipleObjects("Select Breps to generate weaving layout:", false, ObjectType.Brep, out var objectRefs);
         if (selectionResult != Result.Success)
         {
             RhinoApp.WriteLine("Please, select correctly the Breps");
-            WeaverBotPanel.rhinoWeavingObjects = new List<RhinoObject>();
             return Result.Cancel;
         }
         else
@@ -98,7 +114,6 @@ public class WeaverBot_Horizontal : Command
         if (rc != Result.Success || contourInterval <= 0)
         {
             RhinoApp.WriteLine("Please, introduce a correct contour interval");
-            WeaverBotPanel.rhinoWeavingObjects = new List<RhinoObject>();
             return Result.Cancel;
         }
         return Result.Success;
@@ -116,7 +131,6 @@ public class WeaverBot_Horizontal : Command
         if (getResult != GetResult.Option)
         {
             RhinoApp.WriteLine("Please, select an option to generate the axis.");
-            WeaverBotPanel.rhinoWeavingObjects = new List<RhinoObject>();
             return Result.Cancel;
         }
         #region Axis.PointsOption
@@ -126,14 +140,12 @@ public class WeaverBot_Horizontal : Command
             if (result0 != Result.Success)
             {
                 RhinoApp.WriteLine("Please, select the points to generate the axis.");
-                WeaverBotPanel.rhinoWeavingObjects = new List<RhinoObject>();
                 return Result.Cancel;
             }
             var result1 = RhinoGet.GetPoint("Select 1st Axis Point", false, out var point1);
             if (result1 != Result.Success)
             {
                 RhinoApp.WriteLine("Please, select the points to generate the axis.");
-                WeaverBotPanel.rhinoWeavingObjects = new List<RhinoObject>();
                 return Result.Cancel;
             }
             axis = new LineCurve(point0, point1);
@@ -147,7 +159,6 @@ public class WeaverBot_Horizontal : Command
             if (resultLineSelection != Result.Success)
             {
                 RhinoApp.WriteLine("Please, select a line");
-                WeaverBotPanel.rhinoWeavingObjects = new List<RhinoObject>();
                 return Result.Cancel;
             }
 
@@ -157,25 +168,30 @@ public class WeaverBot_Horizontal : Command
         #endregion Axis.LineOption
         return Result.Success;
     }
-    private Result GenerateContours (Brep orientedBrepAsBoundingBox, LineCurve axis, double contourInterval, out Surface mainSectionSurface)
+    private Result GenerateContours(Brep orientedBrepAsBoundingBox, LineCurve axis, double contourInterval, out Brep mainSectionBrep, out Guid mainSectionBrepGuid)
     {
 
-        //Variables Required **************************************************************************
+        #region General Variables
         var sectionPlanes = new List<Plane>();
         var sectionContours = new List<Curve>();
         var sectionBreps = new List<Brep>();
         var sectionSurfaces = new List<Surface>();
         var brepList = new List<Brep>();
         double maxArea = 0;
-        Brep mainSectionBrep = null;
-        mainSectionSurface = null;
+        mainSectionBrep = null;
+        mainSectionBrepGuid = Guid.Empty;
 
-        var joinedBrep = new List<Brep>();
+
+        var joinedBrepList = new List<Brep>();
+        var joinedBrep = new Brep();
         Vector3d axisVector = axis.PointAtEnd - axis.PointAtStart;
         double longestLength = 0;
         Line longestLineEdge = Line.Unset;
         Vector3d longestLineEdgeVector = Vector3d.Unset;
 
+        #endregion
+
+        #region Brep & Bounding Box
         //Find the edges of the Brep that are aligned to the contour axis and get the longest one.
         foreach (var edge in orientedBrepAsBoundingBox.Edges)
         {
@@ -213,53 +229,47 @@ public class WeaverBot_Horizontal : Command
         //Try to transform the Rhino Objects
         foreach (var rhObject in WeaverBotPanel.rhinoWeavingObjects)
         {
-            if (rhObject.Geometry.HasBrepForm)
-            {
-                Brep brep = rhObject.Geometry as Brep;
-                if (brep == null)
-                {
-                    RhinoApp.WriteLine("Rhino fails to transform one selected Object to Brep. Please, be sure all the elements are produced with clean geometry");
-                    WeaverBotPanel.rhinoWeavingObjects = new List<RhinoObject>();
-                    return Result.Cancel;
-                }
+            var brep = Brep.TryConvertBrep(rhObject.Geometry);
 
-                initialBrepContourList.Add(brep);
-            }
-            else
+            if (brep == null)
             {
-                //At the moment I just return a failure message. But I should plan for an alternative solution in the future
                 RhinoApp.WriteLine("Rhino fails to transform one selected Object to Brep. Please, be sure all the elements are produced with clean geometry");
-                WeaverBotPanel.rhinoWeavingObjects = new List<RhinoObject>();
                 return Result.Cancel;
             }
+            initialBrepContourList.Add(brep);
         }
+
+
+
 
         //BooleanUnion of Breps **************************************************
         if (initialBrepContourList.Count < 2)
         {
-            //Since there is only one RhinoObject selected and could be transformed to 1 brep, we don't need to perform any action.
+            joinedBrep = joinedBrepList[0];
         }
         else
         {
             var brepArray = Brep.CreateBooleanUnion(initialBrepContourList, RhinoDoc.ActiveDoc.ModelAbsoluteTolerance);
-            joinedBrep = brepArray.ToList();
-            if (joinedBrep.Count > 1 || joinedBrep == null)
+            joinedBrepList = brepArray.ToList();
+
+            if (joinedBrepList.Count > 1 || joinedBrepList == null)
             {
                 RhinoApp.WriteLine("Elements of your structure are not adjacent or there is a problem to generate a single Brep out of them.Please be sure " +
                                     "your geometry can be transformed to a single brep");
-                WeaverBotPanel.rhinoWeavingObjects = new List<RhinoObject>();
                 return Result.Cancel;
             }
+            joinedBrep = joinedBrepList[0];
         }
         //Merge All Coplanar Faces **********************************************
-        if (!joinedBrep[0].MergeCoplanarFaces(RhinoDoc.ActiveDoc.ModelAbsoluteTolerance))
+        if (!joinedBrep.MergeCoplanarFaces(RhinoDoc.ActiveDoc.ModelAbsoluteTolerance))
         {
             RhinoApp.WriteLine("MergeAllCoplanarFaces couldn't be done but the program will continue");
         }
 
-        RhinoDoc.ActiveDoc.Objects.Add(joinedBrep[0]);
-        RhinoDoc.ActiveDoc.Views.Redraw();
 
+        #endregion
+
+        #region Sections + Find 1 Brep with the biggest area
         //Generate the section planes *****************************************************************
         longestLineEdgeVector = longestLineEdge.PointAtLength(longestLineEdge.Length) - longestLineEdge.PointAtLength(0.00);
         longestLineEdgeVector.Unitize();
@@ -267,28 +277,14 @@ public class WeaverBot_Horizontal : Command
         {
             Plane contourPlane = new Plane((longestLineEdge.PointAtLength(0.00) + longestLineEdgeVector * d), longestLineEdgeVector);
             sectionPlanes.Add(contourPlane);
-            //PlaneSurface surface = new PlaneSurface(contourPlane, new Interval(-50, 50), new Interval(-50, 50));
-            //doc.Objects.Add(surface);
-            //doc.Views.Redraw();
         }
         //Intersect the planes with the Brep.
-
-        //sectionPlanes.RemoveAt(0);
-        //sectionPlanes.RemoveAt(sectionPlanes.Count - 1);
-
         foreach (var plane in sectionPlanes)
         {
-            Intersection.BrepPlane(joinedBrep[0], plane, RhinoDoc.ActiveDoc.ModelAbsoluteTolerance, out var curves, out var intersectionPoints);
+            var tester = Intersection.BrepPlane(joinedBrep, plane, RhinoDoc.ActiveDoc.ModelAbsoluteTolerance, out var curves, out var intersectionPoints);
             sectionContours.AddRange(curves);
         }
         var curvesJoined = Curve.JoinCurves(sectionContours, RhinoDoc.ActiveDoc.ModelAbsoluteTolerance).ToList();
-
-        foreach (var curve in curvesJoined)
-        {
-            RhinoDoc.ActiveDoc.Objects.Add(curve);
-            RhinoDoc.ActiveDoc.Views.Redraw();
-        }
-
         sectionBreps = Brep.CreatePlanarBreps(curvesJoined, RhinoDoc.ActiveDoc.ModelAbsoluteTolerance).ToList();
 
         //Find the biggest Brep intersection and get the surface to establish the camera perpendicular later.
@@ -298,100 +294,160 @@ public class WeaverBot_Horizontal : Command
             if (brep.GetArea() > maxArea)
             {
                 maxArea = brep.GetArea();
-                mainSectionBrep = brep;
-
-                foreach (var srf in mainSectionBrep.Surfaces)
-                {
-                    mainSectionSurface = srf;
-                }
+                mainSectionBrep = brep;             
             }
         }
 
-        //Restart the list
+        #endregion
+        //Add the Surface to work with into Rhino(temporary).Later I will delete it using the Guid.
+        ObjectAttributes objectAttributes = new ObjectAttributes();
+        objectAttributes.ObjectColor = Color.Red;
+        objectAttributes.ColorSource = ObjectColorSource.ColorFromObject;
+        objectAttributes.Name = "MainSectionSurface";
 
+        mainSectionBrepGuid = RhinoDoc.ActiveDoc.Objects.Add(mainSectionBrep, objectAttributes);
 
-        WeaverBotPanel.rhinoWeavingObjects = new List<RhinoObject>();
-       
-
-
-
+        RhinoDoc.ActiveDoc.Views.Redraw();
         return Result.Success;
     }
-}
-
-
-
-public class Weaverbot_Trial : Command
-{
-    public override string EnglishName => nameof(Weaverbot_Trial);
-
-    protected override Result RunCommand(RhinoDoc doc, RunMode mode)
+    private Result GenerateViews(Brep mainSectionBrep, Guid mainSectionBrepGuid)
     {
-        RhinoGet.GetOneObject("Select the brep", false, ObjectType.Brep, out var rhObjectRef);
-        var selectedBrep = rhObjectRef.Object().Geometry as Brep;
+        RhinoDoc doc = RhinoDoc.ActiveDoc;
+        //Get the surface from the brep and then get the plane
+        Surface surfaceFromMainSectionBrep = mainSectionBrep.Faces[0];
 
-        RhinoGet.GetMultipleObjects("Select the planes", false, ObjectType.Surface, out var surfaceObjectRefArray);
-        var brepList = surfaceObjectRefArray.ToList().Select(x => (Brep)x.Object().Geometry).ToList();
-
-        var planeList = new List<Plane>();
-
-        foreach (var brep in brepList)
+        // Get the plane on the surface
+        Plane surfacePlane;
+        if (!surfaceFromMainSectionBrep.TryGetPlane(out surfacePlane))
         {
-            foreach (var face in brep.Faces)
+            RhinoApp.WriteLine("Failed to get a plane from the surface.");
+            return Result.Failure;
+        }
+
+        // Create a new view and set its projection
+        var surfaceView = doc.Views.Add("Surface View", DefinedViewportProjection.Top, new System.Drawing.Rectangle(0, 0, 800, 600), true);
+        if (surfaceView == null)
+        {
+            RhinoApp.WriteLine("Failed to create a new view.");
+            return Result.Failure;
+        }
+
+        // Set the construction plane on the surface
+        surfaceView.ActiveViewport.SetConstructionPlane(surfacePlane);
+
+        // Orient the view perpendicular to the surface
+        surfaceView.ActiveViewport.SetCameraLocation(surfacePlane.Origin + surfacePlane.ZAxis, true);
+        surfaceView.ActiveViewport.SetCameraDirection(-surfacePlane.ZAxis, true);
+        surfaceView.ActiveViewport.CameraUp = surfacePlane.YAxis;
+
+        // Hide all objects except the mainSectionBrep
+
+        
+        foreach (var obj in doc.Objects)
+        {
+            if (obj.Id != mainSectionBrepGuid)
             {
-                var tester = face.UnderlyingSurface().TryGetPlane(out var plane);
-                planeList.Add(plane);
+                obj.Attributes.Visible = false;
+                obj.CommitChanges();
             }
         }
-
-        //Intersect the planes with the Brep and create the surfaces to intersect them.
-        var intersectionCurves = new List<Curve>();
-        foreach (var plane in planeList)
-        {
-            Intersection.BrepPlane(selectedBrep, plane, doc.ModelAbsoluteTolerance, out var curves, out var intersectionPoints);
-            intersectionCurves.AddRange(curves);
-        }
-        var curvesJoined = Curve.JoinCurves(intersectionCurves, doc.ModelAbsoluteTolerance);
-        var brepSurfacesList = new List<Brep>();
-        foreach (var joinedCurve in curvesJoined)
-        {
-            if (joinedCurve.IsClosed)
-            {
-                brepSurfacesList.AddRange(Brep.CreatePlanarBreps(joinedCurve, doc.ModelAbsoluteTolerance));
-            }
-        }
-
-
-        //Find the biggest surface intersection.
-        double maxArea = 0;
-        Brep mainSectionBrep = null;
-
-        foreach (var brep in brepSurfacesList)
-        {
-            // brep.Faces;
-
-
-
-        }
-
-
-
-        foreach (var brepSurface in brepSurfacesList)
-        {
-            if (brepSurface.GetArea() > maxArea)
-            {
-                maxArea = brepSurface.GetArea();
-                mainSectionBrep = brepSurface;
-            };
-            //Temporary to check everything is working
-            doc.Objects.Add(brepSurface);
-            doc.Views.Redraw();
-        }
-
-        //Find a camera that is perp.to the surface and open in a new window
-        var centroid = AreaMassProperties.Compute(mainSectionBrep).Centroid;
-
+        doc.Views.Redraw();
+        // Adjust the zoom to fit the surface in the view
+        surfaceView.ActiveViewport.ZoomBoundingBox(mainSectionBrep.GetBoundingBox(true));
         return Result.Success;
+    }
+
+
+
+    public class Weaverbot_Trial : Command
+    {
+        public override string EnglishName => nameof(Weaverbot_Trial);
+
+        protected override Result RunCommand(RhinoDoc doc, RunMode mode)
+        {
+            RhinoGet.GetOneObject("Select the brep", false, ObjectType.Brep, out var rhObjectRef);
+            var selectedBrep = rhObjectRef.Object().Geometry as Brep;
+
+            RhinoGet.GetMultipleObjects("Select the planes", false, ObjectType.Surface, out var surfaceObjectRefArray);
+            var brepList = surfaceObjectRefArray.ToList().Select(x => (Brep)x.Object().Geometry).ToList();
+
+            var planeList = new List<Plane>();
+
+            foreach (var brep in brepList)
+            {
+                foreach (var face in brep.Faces)
+                {
+                    var tester = face.UnderlyingSurface().TryGetPlane(out var plane);
+                    planeList.Add(plane);
+                }
+            }
+
+            //Intersect the planes with the Brep and create the surfaces to intersect them.
+            var intersectionCurves = new List<Curve>();
+            foreach (var plane in planeList)
+            {
+                Intersection.BrepPlane(selectedBrep, plane, doc.ModelAbsoluteTolerance, out var curves, out var intersectionPoints);
+                intersectionCurves.AddRange(curves);
+            }
+            var curvesJoined = Curve.JoinCurves(intersectionCurves, doc.ModelAbsoluteTolerance);
+            var brepSurfacesList = new List<Brep>();
+            foreach (var joinedCurve in curvesJoined)
+            {
+                if (joinedCurve.IsClosed)
+                {
+                    brepSurfacesList.AddRange(Brep.CreatePlanarBreps(joinedCurve, doc.ModelAbsoluteTolerance));
+                }
+            }
+
+
+            //Find the biggest surface intersection.
+            double maxArea = 0;
+            Brep mainSectionBrep = null;
+
+            foreach (var brep in brepSurfacesList)
+            {
+                // brep.Faces;
+
+
+
+            }
+
+
+
+            foreach (var brepSurface in brepSurfacesList)
+            {
+                if (brepSurface.GetArea() > maxArea)
+                {
+                    maxArea = brepSurface.GetArea();
+                    mainSectionBrep = brepSurface;
+                };
+                //Temporary to check everything is working
+                doc.Objects.Add(brepSurface);
+                doc.Views.Redraw();
+            }
+
+            //Find a camera that is perp.to the surface and open in a new window
+            var centroid = AreaMassProperties.Compute(mainSectionBrep).Centroid;
+
+            return Result.Success;
+        }
+    }
+
+
+    public class Weaverbot_Selection : Command
+    {
+        public override string EnglishName => nameof(Weaverbot_Selection);
+
+        protected override Result RunCommand(RhinoDoc doc, RunMode mode)
+        {
+            RhinoGet.GetMultipleObjects("Select objects", false, ObjectType.Brep, out var objects);
+
+            foreach (var obj in objects)
+            {
+                RhinoApp.WriteLine($"The object is {obj.Object().Geometry.ToString()}");
+            }
+            return Result.Success;
+        }
     }
 }
 

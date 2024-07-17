@@ -45,8 +45,16 @@ namespace WeaverBot.Core
             return new(bitmap);
         }
 
-        public static Brep GenerateOrientedBrep(List<RhinoObject> objects, LineCurve axis)
+        public static Brep GenerateOrientedBrep(List<RhinoObject> inputNonTransformedObjects, LineCurve axis)
         {
+            //Create a list of RhinoObjects to don't modify the input list. We must duplicate teh geometry and create new rhinoobjects. Otherwise, even
+            //if you copy the list you will be modifying the initial RhinoObjects
+            List<GeometryBase> copyOfGeometry = new List<GeometryBase>();
+            foreach(var initialObjects in inputNonTransformedObjects)
+            {
+                var duplicatedGeometry = initialObjects.Geometry.Duplicate();
+                copyOfGeometry.Add(duplicatedGeometry);
+            }
 
             BoundingBox worldOrientedBbox = new BoundingBox();
             Vector3d vectorAxis = axis.PointAtEnd - axis.PointAtStart;
@@ -62,21 +70,21 @@ namespace WeaverBot.Core
             Transform orientedPlaneToWolrdPlane_Transformation = Transform.PlaneToPlane(orientedPlane, Plane.WorldYZ);
             Transform worldPlaneToOrientedPlane_Transformation = Transform.PlaneToPlane(Plane.WorldYZ, orientedPlane);
 
-            foreach (var obj in objects)
+            foreach (var geometry in copyOfGeometry)
             {
-                var objGeo = obj.Geometry;
-                objGeo.Transform(orientedPlaneToWolrdPlane_Transformation);
+                geometry.Transform(orientedPlaneToWolrdPlane_Transformation);
                 //RhinoDoc.ActiveDoc.Objects.Add(objGeo);
-                var partialWorldBox = objGeo.GetBoundingBox(true);
+                var partialWorldBox = geometry.GetBoundingBox(true);
                 worldOrientedBbox.Union(partialWorldBox);
             }
-          
+
             var brep = worldOrientedBbox.ToBrep();
-            var transformResult=brep.Transform(worldPlaneToOrientedPlane_Transformation);
+            var transformResult = brep.Transform(worldPlaneToOrientedPlane_Transformation);
             if (transformResult != true)
             {
                 RhinoApp.WriteLine("Brep couldn't be transformed");
             }
+
             return brep;
         }
 
