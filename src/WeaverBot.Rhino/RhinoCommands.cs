@@ -36,9 +36,9 @@ public class WeaverBotRun : Command
     }
 }
 
-public class WeaverBot_HellloWorld : Command
+public class WeaverBot_HelloWorld : Command
 {
-    public override string EnglishName => nameof(WeaverBot_HellloWorld);
+    public override string EnglishName => nameof(WeaverBot_HelloWorld);
 
     protected override Result RunCommand(RhinoDoc doc, RunMode mode)
     {
